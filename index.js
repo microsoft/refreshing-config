@@ -9,6 +9,8 @@ const Q = require('q');
 const patch = require('fast-json-patch');
 const uuid = require('uuid');
 
+// TODO: Support patching config
+// TODO: Can we be fancier with data types?
 // TODO: Review failure conditions with refreshPolicies and changePublishers
 
 class DynamicConfig extends EventEmitter {
@@ -21,6 +23,7 @@ class DynamicConfig extends EventEmitter {
     this.store = store;
     this.refreshPolicies = this.changePublishers = [];
     this.config = {};
+    this.config._emitter = new EventEmitter();
     this.firstTime = true;
   }
 
@@ -76,9 +79,17 @@ class DynamicConfig extends EventEmitter {
     return this.store.getAll()
       .then(newConfig => {
         const configPatch = patch.compare(self.config, newConfig);
+        for (let i = 0; i < configPatch.length; i++) {
+          const value = configPatch[i];
+          if (value.op === 'remove' && value.path === '/_emitter') {
+            configPatch.splice(i, 1);
+            break;
+          }
+        }
         if (configPatch.length !== 0) {
           patch.apply(self.config, configPatch);
           self.emit('changed', self.config, configPatch);
+          self.config._emitter.emit('changed', self.config, configPatch);
         }
         self.emit('refresh', self.config);
         return self.config;
@@ -139,24 +150,27 @@ class StaleRefreshPolicy {
 // Refresh periodically
 class IntervalRefreshPolicy {
   constructor(duration) {
-    this.stores = [];
-    this.interval = setInterval(duration.asMilliseconds(), () => {
-      for (let i = 0; i < this.stores.length; i++) {
-        try {
-          this.stores[i].refresh();
-        }
-        catch (e) {
-        }
+    this.duration = duration;
+  }
+
+  subscribe(subscriber) {
+    if (this.subscriber) {
+      throw new Error('Already subscribed');
+    }
+    this.interval = setInterval(() => {
+      try {
+        subscriber.refresh();
       }
-    });
+      catch (e) {
+      }
+    }, 1000);
   }
 
-  attach(store) {
-
-  }
-
-  quit() {
-    clearInterval(this.interval);
+  unsubscribe() {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.subscriber = null;
+    }
   }
 }
 
