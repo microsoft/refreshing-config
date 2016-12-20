@@ -200,22 +200,6 @@ class RedisPubSubRefreshPolicyAndChangePublisher {
   }
 }
 
-class OverrideAggregateStore {
-  constructor(originStore, overrideStore) {
-    this.originStore = originStore;
-    this.overrideStore = overrideStore;
-  }
-
-  getAll() {
-    const originValues = this.originStore.getAll();
-    const overrideValues = this.overrideStore.getAll();
-  }
-
-  set(name, value) {
-    this.originStore.set(name, value);
-  }
-}
-
 class RedisConfigStore {
   constructor(redisClient, key) {
     if (!redisClient) {
