@@ -21,7 +21,8 @@ class RefreshingConfig extends EventEmitter {
       throw new Error('Missing store');
     }
     this.store = store;
-    this.refreshPolicies = this.changePublishers = [];
+    this.refreshPolicies = [];
+    this.changePublishers = [];
     this.config = {};
     this.config._emitter = new EventEmitter();
     this.firstTime = true;
@@ -99,7 +100,7 @@ class RefreshingConfig extends EventEmitter {
       }
       this.refreshPolicies.push(extension);
     }
-    if (typeof (extension['publish']) !== 'function') {
+    if (typeof (extension['publish']) === 'function') {
       this.changePublishers.push(extension);
     }
     return this;

@@ -76,8 +76,7 @@ describe('RefreshingConfig', () => {
         store.getAll.calledOnce.should.be.true;
         publisher.publish.calledOnce.should.be.true;
       })
-      .then(emitPromise.promise)
-      .done();
+      .then(emitPromise.promise);
   });
 
   it('can get all the settings from the store', () => {
@@ -98,28 +97,28 @@ describe('RefreshingConfig', () => {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
     };
     const target = new config.RefreshingConfig(store);
-    return Q.all(target.get('foo'), target.get('bar'))
-      .done(() => store.getAll.calledOnce.should.be.true);
+    return Q.all([target.get('foo'), target.get('bar')])
+      .then(() => store.getAll.calledOnce.should.be.true);
   });
 
   it('refreshes if any refresh policy says yes', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
     };
-    const noRefreshPolcy = {
+    const noRefreshPolicy = {
       shouldRefresh: sinon.stub().returns(false)
     };
     const yesRefreshPolicy = {
       shouldRefresh: sinon.stub().returns(true)
     };
     const target = new config.RefreshingConfig(store)
-      .withExtension(noRefreshPolcy)
-      .withExtension(yesRefreshPolicy);
-    return Q.all(target.get('foo'), target.get('bar'))
-      .done(() => {
+      .withExtension(yesRefreshPolicy)
+      .withExtension(noRefreshPolicy);
+    return Q.all([target.get('foo'), target.get('bar')])
+      .then(() => {
         store.getAll.calledTwice.should.be.true;
-        noRefreshPolcy.shouldRefresh.calledOnce.should.be.true;
-        yesRefreshPolicy.shouldRefresh.calledOnce.should.be.true;
+        yesRefreshPolicy.shouldRefresh.should.be.calledOnce;
+        noRefreshPolicy.shouldRefresh.callCount.should.equal(0);
       });
   });
 
@@ -127,15 +126,15 @@ describe('RefreshingConfig', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
     };
-    const noRefreshPolcy = {
+    const noRefreshPolicy = {
       shouldRefresh: sinon.stub().returns(false)
     };
     const target = new config.RefreshingConfig(store)
-      .withExtension(noRefreshPolcy);
-    return Q.all(target.get('foo'), target.get('bar'))
-      .done(() => {
+      .withExtension(noRefreshPolicy);
+    return Q.all([target.get('foo'), target.get('bar')])
+      .then(() => {
         store.getAll.calledOnce.should.be.true;
-        noRefreshPolcy.shouldRefresh.calledOnce.should.be.true;
+        noRefreshPolicy.shouldRefresh.calledOnce.should.be.true;
       });
   });
 
@@ -154,22 +153,46 @@ describe('RefreshingConfig', () => {
   });
 
   it('notifies subscribers of changes', () => {
+    const firstResponse = { foo: 'bar' };
+    const secondResponse = { foo: 'bar', hello: 'world' };
+    const getAllStub = sinon.stub();
+    getAllStub.onFirstCall().returns(Q(firstResponse));
+    getAllStub.onSecondCall().returns(Q(secondResponse));
+
     const store = {
-      getAll: sinon.stub()
-        .returns(Q({ foo: 'bar' })).onFirstCall()
-        .returns(Q({ foo: 'bar', hello: 'world' })).onSecondCall()
+      getAll: getAllStub
     };
     const refreshOnDemandPolicy = {
       subscribe: (subscriber) => { this.subscriber = subscriber; },
       refresh: () => this.subscriber.refresh()
     };
+
     // TODO: emit on target and config
+    const targetEmitDeferand = Q.defer();
+    const valuesEmitDeferand = Q.defer();
+
     const target = new config.RefreshingConfig(store)
       .withExtension(refreshOnDemandPolicy);
-    target.getAll()
-      .then(() => {
-
+    target.on('changed', (newValues, diff) => {
+      newValues.should.equal(secondResponse);
+      diff.length.should.equal(1);
+      targetEmitDeferand.resolve();
+    });
+    const getAllPromise = target.getAll()
+      .then(values => {
+        values.should.equal(firstResponse);
+        values.on('changed', (newValues, diff) => {
+          newValues.should.equal(secondResponse);
+          diff.length.should.equal(1);
+          valuesEmitDeferand.resolve();
+        });
+      })
+      .then(target.getAll)
+      .then(values => {
+        values.should.equal(secondResponse);
       });
+
+    return Q.all(getAllPromise, targetEmitDeferand.promise, valuesEmitDeferand.promise);
   });
 
   it('supports fluent addition of extensions', () => {
