@@ -50,7 +50,7 @@ class RefreshingConfig extends EventEmitter {
         this.emit('set', name, value);
         this.changePublishers.forEach(publisher => {
           try {
-            publisher.publish();
+            publisher.publish('set', name, value);
           }
           catch (e) {
             // Empty block
@@ -67,7 +67,7 @@ class RefreshingConfig extends EventEmitter {
         this.emit('delete', name);
         this.changePublishers.forEach(publisher => {
           try {
-            publisher.publish();
+            publisher.publish('delete', name);
           }
           catch (e) {
             // Empty block
