@@ -8,7 +8,29 @@ Configuration library that can dynamically refresh configuration values.
 # Usage
 
 # Stores
-refreshing-config requires a store that will store the configuration values. We provide a Redis-backed store in https://npmjs.org/package/refreshing-config-redis but you can implement your own store.
+refreshing-config requires a store that will store the configuration values. We provide a Redis-backed store in https://npmjs.org/package/refreshing-config-redis but you can implement your own store for
+your configuration backend.
+
+### Writing a store
+Stores must implement ```getAll(): IPromise<object>``` and can optionally implement ```set(name: string, value: any): IPromise<any>``` and ```delete(name: string): IPromise<void>```. The ```getAll()```
+function should return an object whose keys are the names of the configuration values and the value is the configuration value itself. Stores should support the full set of JavaScript data types.
+
+# Events
+The following events are emitted from ```RefreshingConfig```:
+* ```set(name, value)```: Emitted when a configuration value has been set in the underlying store where ```name```
+is the name of the configuration value and ```value``` is the new value.
+* ```delete(name)```: Emitted when a configuration value has been deleted where ```name``` is the name
+of the configuration value that was deleted.
+* ```changed(config, patch)```: Emitted when a change is detected in the configuration values after a refresh where
+```config``` is the updated configuration (including unchanged values) and ```patch``` is a JSON patch describing
+the changes that were detected.
+* ```refresh(config)```: Emitted whenever the configuration is refreshed from the store where ```config```
+is the configuration after the refresh.
+
+The object returned from ```getAll()``` also has an event emitter in the ```_emitter``` property. This
+event emitter will emit the same ```changed(config, patch)``` event as ```RefreshingConfig```. This can
+be useful if you want to pass the configuration object around you application and allow different parts
+of your application to subscribe to updates to the configuration.
 
 # Extensions
 You can extend refreshing-config's behavior by attaching extensions using ```withExtension```:
@@ -68,6 +90,9 @@ policies should call ```subscriber.refresh()``` whenever they want the configura
 Change notifiers are notified when refreshing-config has modified a configuration value (for example, when ```set``` or ```delete``` is called). This can be used to notify others about the need to refresh config.
 Note that these are not called when configuration values are changed externally in the store, if you want to know about those you should subscribe to the ```changed``` event on ```RefreshingConfig```.
 
+Change notifiers are generally paired with a refresh policy, in this pattern the change notifier is told about the change and communicates it to interested consumers, these consumers consume the notification
+in their refresh policy which then tells the configuration library to retrieve the new values from the store.
+
 There are no out of the box change notifiers but see https://github.com/Microsoft/refreshing-config-redis to see an example refresh policy/change notifier that use Redis pub/sub to refresh configuration
 values automatically when they change.
 
@@ -76,7 +101,7 @@ A change notifier must implement the ```publish(operation: string, name: string,
 be ```set``` or ```delete```, the ```name``` will be the name of the configuration value impacted, and the ```value``` will be the new value (for ```set``` operations).
 
 # Contributing
-Pull requests that honor the traits above will gladly be considered!
+Pull requests will gladly be considered!
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see 
 the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) 
