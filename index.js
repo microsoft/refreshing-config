@@ -153,7 +153,7 @@ class NeverRefreshPolicy {
 // Refresh if we haven't refreshed recently
 class StaleRefreshPolicy {
   constructor(duration) {
-    if (!duration || duration <= 0) {
+    if (typeof duration !== 'number' || duration <= 0) {
       throw new Error('Invalid duration');
     }
     this.duration = duration;
@@ -171,6 +171,9 @@ class StaleRefreshPolicy {
 // Refresh periodically
 class IntervalRefreshPolicy {
   constructor(duration) {
+    if (typeof duration !== 'number' || duration <= 0) {
+      throw new Error('Invalid duration');
+    }
     this.duration = duration;
   }
 
@@ -178,6 +181,7 @@ class IntervalRefreshPolicy {
     if (this.subscriber) {
       throw new Error('Already subscribed');
     }
+    this.subscriber = subscriber;
     this.interval = setInterval(() => {
       try {
         subscriber.refresh();

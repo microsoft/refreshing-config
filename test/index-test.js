@@ -15,7 +15,6 @@ describe('RefreshingConfig', () => {
       new config.RefreshingConfig();
     }).should.throw(Error);
   });
-
   it('can retrieve a setting from the store', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
@@ -23,12 +22,10 @@ describe('RefreshingConfig', () => {
     const target = new config.RefreshingConfig(store);
     return target.get('foo').then(value => value.should.equal('bar'));
   });
-
   it('fails to retrieve a setting if there is no name', () => {
     const target = new config.RefreshingConfig({});
     (() => target.get(null)).should.throw(Error);
   });
-
   it('can set a setting in the store', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' })),
@@ -53,7 +50,6 @@ describe('RefreshingConfig', () => {
       publisher.publish.calledOnce.should.be.true;
     }).then(emitPromise.promise);
   });
-
   it('can delete a setting from the store', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' })),
@@ -79,7 +75,6 @@ describe('RefreshingConfig', () => {
       })
       .then(emitPromise.promise);
   });
-
   it('can get all the settings from the store', () => {
     const values = { foo: 'bar', hello: 'world' };
     const store = {
@@ -92,7 +87,6 @@ describe('RefreshingConfig', () => {
       value.should.deep.equal(values);
     });
   });
-
   it('caches settings from store by default', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
@@ -101,7 +95,6 @@ describe('RefreshingConfig', () => {
     return Q.all([target.get('foo'), target.get('bar')])
       .then(() => store.getAll.calledOnce.should.be.true);
   });
-
   it('refreshes if any refresh policy says yes', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
@@ -122,7 +115,6 @@ describe('RefreshingConfig', () => {
         noRefreshPolicy.shouldRefresh.callCount.should.equal(0);
       });
   });
-
   it('doesn\'t refresh if all refresh policies say no', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
@@ -138,7 +130,6 @@ describe('RefreshingConfig', () => {
         noRefreshPolicy.shouldRefresh.calledOnce.should.be.true;
       });
   });
-
   it('refreshes if refresh policy proactively asks', () => {
     const store = {
       getAll: sinon.stub().returns(Q({ foo: 'bar' }))
@@ -152,7 +143,6 @@ describe('RefreshingConfig', () => {
     refreshOnDemandPolicy.refresh();
     store.getAll.calledOnce.should.be.true;
   });
-
   it('notifies subscribers of changes', () => {
     const firstResponse = { foo: 'bar' };
     const secondResponse = { foo: 'bar', hello: 'world', qwer: 'ty' };
@@ -208,7 +198,6 @@ describe('RefreshingConfig', () => {
 
     return Q.all([getAllPromise, targetEmitDeferand.promise, valuesEmitDeferand.promise]);
   });
-
   it('supports fluent addition of extensions', () => {
     const target = new config.RefreshingConfig({});
     target.withExtension(null).should.equal(target);
@@ -234,11 +223,9 @@ describe('StaleRefreshPolicy', () => {
   beforeEach(function () {
     clock = sinon.useFakeTimers();
   });
-
   afterEach(function () {
     clock.restore();
   });
-
   it('refreshes on first call', () => {
     const target = new config.RefreshPolicy.StaleRefreshPolicy(1000);
     target.shouldRefresh().should.be.true;
@@ -255,17 +242,21 @@ describe('StaleRefreshPolicy', () => {
     clock.tick(1000);
     target.shouldRefresh().should.be.false;
   });
+  it('throws if duration is not a number', () => {
+    (() => new config.RefreshPolicy.StaleRefreshPolicy(null)).should.throw(Error);
+  });
+  it('throws if duration is less than 1', () => {
+    (() => new config.RefreshPolicy.StaleRefreshPolicy(0)).should.throw(Error);
+  });
 });
 
 describe('IntervalRefreshPolicy', () => {
   beforeEach(function () {
     clock = sinon.useFakeTimers();
   });
-
   afterEach(function () {
     clock.restore();
   });
-
   it('refreshes once the interval has passed', () => {
     const refreshingConfig = new config.RefreshingConfig({});
     refreshingConfig.refresh = sinon.stub();
@@ -277,7 +268,6 @@ describe('IntervalRefreshPolicy', () => {
     refreshingConfig.refresh.calledTwice.should.be.true;
     refreshPolicy.unsubscribe();
   });
-
   it('stops refreshing once unsubscribed', () => {
     const refreshingConfig = new config.RefreshingConfig({});
     refreshingConfig.refresh = sinon.stub();
@@ -287,5 +277,18 @@ describe('IntervalRefreshPolicy', () => {
     refreshPolicy.unsubscribe();
     clock.tick(1250);
     refreshingConfig.refresh.calledOnce.should.be.true;
+  });
+  it('throws if duration is not a number', () => {
+    (() => new config.RefreshPolicy.IntervalRefreshPolicy(null)).should.throw(Error, /invalid duration/i);
+  });
+  it('throws if duration is less than 1', () => {
+    (() => new config.RefreshPolicy.IntervalRefreshPolicy(0)).should.throw(Error, /invalid duration/i);
+  });
+  it('throws if already subscribed', () => {
+    (() => {
+      const target = new config.RefreshPolicy.IntervalRefreshPolicy(1000);
+      target.subscribe({});
+      target.subscribe({});
+    }).should.throw(Error, /already subscribed/i);
   });
 });
