@@ -291,4 +291,8 @@ describe('IntervalRefreshPolicy', () => {
       target.subscribe({});
     }).should.throw(Error, /already subscribed/i);
   });
+  it('does not throw if you unsubscribe when not subscribed', () => {
+    const target = new config.RefreshPolicy.IntervalRefreshPolicy(1000);
+    target.unsubscribe();
+  });
 });

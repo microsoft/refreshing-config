@@ -81,10 +81,10 @@ class RefreshingConfig extends EventEmitter {
     if (!extension) {
       return this;
     }
-    if (typeof (extension['subscribe']) === 'function' || typeof (extension['shouldRefresh']) === 'function') {
-      if (typeof (extension['subscribe']) === 'function') {
-        extension.subscribe(this);
-      }
+    if (typeof (extension['subscribe']) === 'function') {
+      extension.subscribe(this);
+    }
+    if (typeof (extension['shouldRefresh']) === 'function') {
       this.refreshPolicies.push(extension);
     }
     if (typeof (extension['publish']) === 'function') {
@@ -121,11 +121,9 @@ class RefreshingConfig extends EventEmitter {
     if (!shouldRefresh) {
       for (let i = 0; i < this.refreshPolicies.length; i++) {
         const refreshPolicy = this.refreshPolicies[i];
-        if (typeof (refreshPolicy['shouldRefresh']) === 'function') {
-          if (refreshPolicy.shouldRefresh()) {
-            shouldRefresh = true;
-            break;
-          }
+        if (refreshPolicy.shouldRefresh()) {
+          shouldRefresh = true;
+          break;
         }
       }
     }
