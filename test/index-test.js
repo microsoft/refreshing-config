@@ -5,10 +5,12 @@ chai.should();
 
 const config = require('../index');
 
-describe('index', () => {
+var clock;
+
+describe('RefreshingConfig', () => {
   it('requires a store', () => {
     (() => {
-      new config.DynamicConfig();
+      new config.RefreshingConfig();
     }).should.throw(Error);
   });
 
@@ -18,6 +20,11 @@ describe('index', () => {
     };
     const target = new config.RefreshingConfig(store);
     return target.get('foo').then(value => value.should.equal('bar'));
+  });
+
+  it('fails to retrieve a setting if there is no name', () => {
+    const target = new config.RefreshingConfig({});
+    (() => target.get(null)).should.throw(Error);
   });
 
   it('can set a setting in the store', () => {
@@ -151,11 +158,92 @@ describe('index', () => {
       subscribe: (subscriber) => { this.subscriber = subscriber; },
       refresh: () => this.subscriber.refresh()
     };
+    // TODO: emit on target and config
     const target = new config.RefreshingConfig(store)
       .withExtension(refreshOnDemandPolicy);
     target.getAll()
       .then(() => {
 
       });
+  });
+
+  it('supports fluent addition of extensions', () => {
+    const target = new config.RefreshingConfig({});
+    target.withExtension(null).should.eq(target);
+    target.withExtension({}).should.eq(target);
+  });
+});
+
+describe('AlwaysRefreshPolicy', () => {
+  it('always returns true', () => {
+    const target = new config.RefreshPolicy.AlwaysRefreshPolicy();
+    target.shouldRefresh().should.true;
+  });
+});
+
+describe('NeverRefreshPolicy', () => {
+  it('always returns false', () => {
+    const target = new config.RefreshPolicy.NeverRefreshPolicy();
+    target.shouldRefresh().should.be.false;
+  });
+});
+
+describe('StaleRefreshPolicy', () => {
+  beforeEach(function () {
+    clock = sinon.useFakeTimers();
+  });
+
+  afterEach(function () {
+    clock.restore();
+  });
+
+  it('refreshes on first call', () => {
+    const target = new config.RefreshPolicy.StaleRefreshPolicy(1000);
+    target.shouldRefresh().should.be.true;
+  });
+  it('refreshes if the interval has passed', () => {
+    const target = new config.RefreshPolicy.StaleRefreshPolicy(1000);
+    target.shouldRefresh();
+    clock.tick(5000);
+    target.shouldRefresh().should.be.true;
+  });
+  it('doesn\'t refresh if the interval hasnn\'t passed', () => {
+    const target = new config.RefreshPolicy.StaleRefreshPolicy(5000);
+    target.shouldRefresh();
+    clock.tick(1000);
+    target.shouldRefresh().should.be.false;
+  });
+});
+
+describe('IntervalRefreshPolicy', () => {
+  beforeEach(function () {
+    clock = sinon.useFakeTimers();
+  });
+
+  afterEach(function () {
+    clock.restore();
+  });
+
+  it('refreshes once the interval has passed', () => {
+    const refreshingConfig = new config.RefreshingConfig({});
+    refreshingConfig.refresh = sinon.stub();
+    const refreshPolicy = new config.RefreshPolicy.IntervalRefreshPolicy(1000);
+    refreshPolicy.subscribe(refreshingConfig);
+    clock.tick(1250);
+    refreshingConfig.refresh.calledOnce.should.be.true;
+    clock.tick(1250);
+    refreshingConfig.refresh.calledTwice.should.be.true;
+    refreshPolicy.unsubscribe();
+  });
+
+  it('stops refreshing once unsubscribed', () => {
+    const refreshingConfig = new config.RefreshingConfig({});
+    refreshingConfig.refresh = sinon.stub();
+    const refreshPolicy = new config.RefreshPolicy.IntervalRefreshPolicy(1000);
+    refreshPolicy.subscribe(refreshingConfig);
+    clock.tick(1250);
+    refreshPolicy.unsubscribe();
+    clock.tick(1250);
+    refreshingConfig.refresh.calledOnce.should.be.true;
   });
 });

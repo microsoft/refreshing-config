@@ -177,13 +177,15 @@ class NeverRefreshPolicy {
 // Refresh if we haven't refreshed recently
 class StaleRefreshPolicy {
   constructor(duration) {
-    // TODO Validate
+    if (!duration || duration <= 0) {
+      throw new Error('Invalid duration');
+    }
     this.duration = duration;
   }
 
   shouldRefresh() {
-    if (!this.lastRefresh || moment.now() > this.lastRefresh.add(this.duration)) {
-      this.lastRefresh = moment.now();
+    if (!this.lastRefresh || moment() > this.lastRefresh.add(this.duration, 'ms')) {
+      this.lastRefresh = moment();
       return true;
     }
     return false;
@@ -207,7 +209,7 @@ class IntervalRefreshPolicy {
       catch (e) {
         // Empty block
       }
-    }, 1000);
+    }, this.duration);
   }
 
   unsubscribe() {
