@@ -6,6 +6,14 @@
 Configuration library that can dynamically refresh configuration values.
 
 # Usage
+1. Construct your configuration store
+2. Instantiate an instance of ```RefreshingConfig``` passing your store to the constructor
+3. Optionally, instantiate your refresh policies and/or change notifiers and add them by calling ```withExtension(extension: object)```
+4. Call ```get(name: string)``` or ```getAll()``` to retrieve configuration values
+5. Call ```set(name: string, value: any)``` or ```delete(name: string)``` to manipulate configuration values
+
+It is important to note that the configuration values are manipulated in place when they are refreshed so if you have an instance of an object returned from ```get``` or ```getAll``` it may be modified
+whenever a refresh occurs (this is intentional), if you don't want the values to change you should clone the object and use the clone.
 
 # Stores
 refreshing-config requires a store that will store the configuration values. We provide a Redis-backed store in https://npmjs.org/package/refreshing-config-redis but you can implement your own store for
@@ -49,6 +57,8 @@ Refresh policies are bypassed in the following scenarios:
 
 * The read of the first configuration value (to get the initial set of configuration values)
 * After a set or delete (because we know the configuration values are stale)
+
+If you do not have a refresh policy in place you can explicitly call ```refresh()``` to force a refresh.
 
 ### NeverRefreshPolicy (reactive)
 This is the default policy and will only go to the store when the first setting is read or when we know the values have changed (for example, if ```set``` or ```delete``` is called).
