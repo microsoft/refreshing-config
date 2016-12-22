@@ -1,3 +1,4 @@
+const events = require('events');
 const Q = require('q');
 const chai = require('chai');
 const sinon = require('sinon');
@@ -85,7 +86,11 @@ describe('RefreshingConfig', () => {
       getAll: sinon.stub().returns(Q({ foo: 'bar', hello: 'world' }))
     };
     const target = new config.RefreshingConfig(store);
-    return target.getAll().then(value => value.should.equal(values));
+    return target.getAll().then(value => {
+      value._emitter.should.be.instanceof(events.EventEmitter);
+      delete value._emitter;
+      value.should.deep.equal(values);
+    });
   });
 
   it('caches settings from store by default', () => {
