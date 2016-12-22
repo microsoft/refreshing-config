@@ -99,7 +99,10 @@ class RefreshingConfig extends EventEmitter {
       .then(newConfig => {
         const configPatch = patch.compare(self.config, newConfig);
         const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_emitter');
-        configPatch.splice(emitterPatchIndex, 1);
+        /* istanbul ignore else */
+        if (emitterPatchIndex >= 0) {
+          configPatch.splice(emitterPatchIndex, 1);
+        }
         if (configPatch.length !== 0) {
           patch.apply(self.config, configPatch);
           self.emit('changed', self.config, configPatch);
