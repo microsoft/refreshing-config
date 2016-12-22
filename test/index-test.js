@@ -20,6 +20,58 @@ describe('index', () => {
     return target.get('foo').then(value => value.should.equal('bar'));
   });
 
+  it('can set a setting in the store', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({ foo: 'bar' })),
+      set: sinon.stub().returns(Q())
+    };
+    const publisher = {
+      subscribe: (subscriber) => this.subscriber = subscriber,
+      publish: sinon.stub()
+    };
+    const target = new config.RefreshingConfig(store)
+      .withExtension(publisher);
+    const emitPromise = Q.defer();
+    target.on('set', (name, value) => {
+      name.should.equal('foo');
+      value.should.equal('bar');
+      emitPromise.resolve();
+    });
+    return target.set('foo', 'bar').then(() => {
+      store.set.calledOnce.should.be.true;
+      store.set.calledWith('foo', 'bar').should.be.true;
+      store.getAll.calledOnce.should.be.true;
+      publisher.publish.calledOnce.should.be.true;
+    }).then(emitPromise.promise);
+  });
+
+  it('can delete a setting from the store', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({ foo: 'bar' })),
+      delete: sinon.stub().returns(Q())
+    };
+    const publisher = {
+      subscribe: (subscriber) => this.subscriber = subscriber,
+      publish: sinon.stub()
+    };
+    const target = new config.RefreshingConfig(store)
+      .withExtension(publisher);
+    const emitPromise = Q.defer();
+    target.on('delete', (name) => {
+      name.should.equal('hello');
+      emitPromise.resolve();
+    });
+    return target.delete('hello')
+      .then(() => {
+        store.delete.calledOnce.should.be.true;
+        store.delete.calledWith('hello').should.be.true;
+        store.getAll.calledOnce.should.be.true;
+        publisher.publish.calledOnce.should.be.true;
+      })
+      .then(emitPromise.promise)
+      .done();
+  });
+
   it('can get all the settings from the store', () => {
     const values = { foo: 'bar', hello: 'world' };
     const store = {
