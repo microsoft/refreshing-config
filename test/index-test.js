@@ -174,8 +174,8 @@ describe('RefreshingConfig', () => {
 
   it('supports fluent addition of extensions', () => {
     const target = new config.RefreshingConfig({});
-    target.withExtension(null).should.eq(target);
-    target.withExtension({}).should.eq(target);
+    target.withExtension(null).should.equal(target);
+    target.withExtension({}).should.equal(target);
   });
 });
 
