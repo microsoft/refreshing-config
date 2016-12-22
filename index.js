@@ -7,13 +7,13 @@ const debug = require('debug')('dynamic-config');
 const EventEmitter = require('events');
 const Q = require('q');
 const patch = require('fast-json-patch');
-const uuid = require('uuid');
+const moment = require('moment');
 
 // TODO: Support patching config
 // TODO: Can we be fancier with data types?
 // TODO: Review failure conditions with refreshPolicies and changePublishers
 
-class DynamicConfig extends EventEmitter {
+class RefreshingConfig extends EventEmitter {
   constructor(store) {
     super();
     if (!store) {
@@ -33,13 +33,13 @@ class DynamicConfig extends EventEmitter {
     }
     return this.refreshIfNeeded().then(() => {
       return this.config[name];
-    })
+    });
   }
 
   getAll() {
     return this.refreshIfNeeded().then(() => {
       return this.config;
-    })
+    });
   }
 
   set(name, value) {
@@ -52,10 +52,41 @@ class DynamicConfig extends EventEmitter {
             publisher.publish();
           }
           catch (e) {
+            // Empty block
           }
-        })
+        });
       })
       .then(this.refresh.bind(self));
+  }
+
+  delete(name) {
+    const self = this;
+    return this.store.delete(name)
+      .then(() => {
+        this.emit('delete', name);
+        this.changePublishers.forEach(publisher => {
+          try {
+            publisher.publish();
+          }
+          catch (e) {
+            // Empty block
+          }
+        });
+      })
+      .then(this.refresh.bind(self));
+  }
+
+  patch(patches) {
+    if (!patches || patches.length === 0) {
+      return this.config;
+    }
+
+    // TODO: Removes of whole keys?    
+    const collectedPatches = this._collectPatches(patches);
+    Object.getOwnPropertyNames(collectedPatches).forEach(name => {
+      const target = this.config[name] || {};
+      patch.apply(target, collectedPatches[name]);
+    });
   }
 
   withExtension(extension) {
@@ -115,6 +146,18 @@ class DynamicConfig extends EventEmitter {
     }
     return Q(this.config);
   }
+
+
+  _collectPatches(patches) {
+    return patches.reduce((result, patch) => {
+      const segments = patch.path.split('/');
+      const key = segments[1];
+      result[key] = result[key] || [];
+      patch.path = '/' + segments.slice(2).join('/');
+      result[key].push(patch);
+      return result;
+    }, {});
+  }
 }
 
 // Refresh on every get/set
@@ -162,6 +205,7 @@ class IntervalRefreshPolicy {
         subscriber.refresh();
       }
       catch (e) {
+        // Empty block
       }
     }, 1000);
   }
@@ -174,98 +218,12 @@ class IntervalRefreshPolicy {
   }
 }
 
-// Refresh when a change is detected
-class RedisPubSubRefreshPolicyAndChangePublisher {
-  constructor(redisClient, channel) {
-    if (!redisClient) {
-      throw new Error('Missing redisClient');
-    }
-    if (!channel) {
-      throw new Error('Missing channel');
-    }
-    this.redisClient = redisClient;
-    this.channel = channel;
-    this.publisherId = uuid();
-
-    const subscriberClient = redisClient.duplicate();
-    subscriberClient.on('message', this.refreshSubscriber.bind(this))
-    subscriberClient.subscribe(channel);
-  }
-
-  subscribe(subscriber) {
-    if (this.subscriber) {
-      throw new Error('Already subscribed');
-    }
-    this.subscriber = subscriber;
-  }
-
-  publish() {
-    this.redisClient.publish(this.channel, this.publisherId);
-  }
-
-  refreshSubscriber(publisherId) {
-    if (this.subscriber && this.publisherId !== publisherId) {
-      try {
-        this.subscriber.refresh();
-      }
-      catch (e) {
-      }
-    }
-  }
-}
-
-class RedisConfigStore {
-  constructor(redisClient, key) {
-    if (!redisClient) {
-      throw new Error('Missing redisClient');
-    }
-    if (!key) {
-      throw new Error('Missing key');
-    }
-    this.redisClient = redisClient;
-    this.key = key;
-  }
-
-  getAll() {
-    const deferred = Q.defer();
-    this.redisClient.hgetall(this.key, (error, reply) => {
-      if (error) {
-        return deferred.reject(error);
-      }
-      return deferred.resolve(reply);
-    });
-    return deferred.promise;
-  }
-
-  set(name, value) {
-    const deferred = Q.defer();
-    this.redisClient.hset(this.key, name, value, (error, reply) => {
-      if (error) {
-        return deferred.reject(error);
-      }
-      return deferred.resolve(value);
-    });
-    return deferred.promise;
-  }
-
-  toExtension(channel) {
-    if (!channel) {
-      throw new Error('Missing channel');
-    }
-    return new RedisPubSubRefreshPolicyAndChangePublisher(this.redisClient.duplicate(), channel);
-  }
-}
-
 module.exports = {
-  DynamicConfig: DynamicConfig,
-  Store: {
-    RedisConfigStore: RedisConfigStore,
-  },
+  RefreshingConfig: RefreshingConfig,
   RefreshPolicy: {
     AlwaysRefreshPolicy: AlwaysRefreshPolicy,
     NeverRefreshPolicy: NeverRefreshPolicy,
     StaleRefreshPolicy: StaleRefreshPolicy,
-    IntervalRefreshPolicy: IntervalRefreshPolicy,
-    RedisPubSubRefreshPolicyAndChangePublisher: RedisPubSubRefreshPolicyAndChangePublisher
+    IntervalRefreshPolicy: IntervalRefreshPolicy
   }
-}
+};
