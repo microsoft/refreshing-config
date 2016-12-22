@@ -98,13 +98,8 @@ class RefreshingConfig extends EventEmitter {
     return this.store.getAll()
       .then(newConfig => {
         const configPatch = patch.compare(self.config, newConfig);
-        for (let i = 0; i < configPatch.length; i++) {
-          const value = configPatch[i];
-          if (value.op === 'remove' && value.path === '/_emitter') {
-            configPatch.splice(i, 1);
-            break;
-          }
-        }
+        const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_emitter');
+        configPatch.splice(emitterPatchIndex, 1);
         if (configPatch.length !== 0) {
           patch.apply(self.config, configPatch);
           self.emit('changed', self.config, configPatch);

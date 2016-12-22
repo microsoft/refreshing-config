@@ -145,7 +145,7 @@ describe('RefreshingConfig', () => {
   });
   it('notifies subscribers of changes', () => {
     const firstResponse = { foo: 'bar' };
-    const secondResponse = { foo: 'bar', hello: 'world', qwer: 'ty' };
+    const secondResponse = { foo: 'bar', hello: 'world', _a: 'b' };
     const getAllStub = sinon.stub();
     getAllStub.onFirstCall().returns(Q(firstResponse));
     getAllStub.onSecondCall().returns(Q(secondResponse));
