@@ -1,3 +1,4 @@
+const clone = require('clone');
 const events = require('events');
 const Q = require('q');
 const chai = require('chai');
@@ -154,7 +155,7 @@ describe('RefreshingConfig', () => {
 
   it('notifies subscribers of changes', () => {
     const firstResponse = { foo: 'bar' };
-    const secondResponse = { foo: 'bar', hello: 'world' };
+    const secondResponse = { foo: 'bar', hello: 'world', qwer: 'ty' };
     const getAllStub = sinon.stub();
     getAllStub.onFirstCall().returns(Q(firstResponse));
     getAllStub.onSecondCall().returns(Q(secondResponse));
@@ -162,37 +163,50 @@ describe('RefreshingConfig', () => {
     const store = {
       getAll: getAllStub
     };
-    const refreshOnDemandPolicy = {
-      subscribe: (subscriber) => { this.subscriber = subscriber; },
-      refresh: () => this.subscriber.refresh()
-    };
 
     // TODO: emit on target and config
     const targetEmitDeferand = Q.defer();
     const valuesEmitDeferand = Q.defer();
 
     const target = new config.RefreshingConfig(store)
-      .withExtension(refreshOnDemandPolicy);
+      .withExtension(new config.RefreshPolicy.AlwaysRefreshPolicy());
+
+    let invokeCount = 0;
     target.on('changed', (newValues, diff) => {
-      newValues.should.equal(secondResponse);
-      diff.length.should.equal(1);
+      invokeCount += 1;
+      newValues = clone(newValues);
+      delete newValues._emitter;
+      if (invokeCount === 1) {
+        newValues.should.deep.equal(firstResponse);
+        diff.length.should.equal(1);
+      }
+      if (invokeCount === 2) {
+        newValues.should.deep.equal(secondResponse);
+        diff.length.should.equal(2);
+      }
       targetEmitDeferand.resolve();
     });
     const getAllPromise = target.getAll()
       .then(values => {
-        values.should.equal(firstResponse);
-        values.on('changed', (newValues, diff) => {
-          newValues.should.equal(secondResponse);
-          diff.length.should.equal(1);
+        values._emitter.on('changed', (newValues, diff) => {
+          newValues = clone(newValues);
+          delete newValues._emitter;
+          newValues.should.deep.equal(secondResponse);
+          diff.length.should.equal(2);
           valuesEmitDeferand.resolve();
         });
+        values = clone(values);
+        delete values._emitter;
+        values.should.deep.equal(firstResponse);
       })
-      .then(target.getAll)
+      .then(target.getAll.bind(target))
       .then(values => {
-        values.should.equal(secondResponse);
+        values = clone(values);
+        delete values._emitter;
+        values.should.deep.equal(secondResponse);
       });
 
-    return Q.all(getAllPromise, targetEmitDeferand.promise, valuesEmitDeferand.promise);
+    return Q.all([getAllPromise, targetEmitDeferand.promise, valuesEmitDeferand.promise]);
   });
 
   it('supports fluent addition of extensions', () => {

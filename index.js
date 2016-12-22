@@ -77,19 +77,6 @@ class RefreshingConfig extends EventEmitter {
       .then(this.refresh.bind(self));
   }
 
-  patch(patches) {
-    if (!patches || patches.length === 0) {
-      return this.config;
-    }
-
-    // TODO: Removes of whole keys?    
-    const collectedPatches = this._collectPatches(patches);
-    Object.getOwnPropertyNames(collectedPatches).forEach(name => {
-      const target = this.config[name] || {};
-      patch.apply(target, collectedPatches[name]);
-    });
-  }
-
   withExtension(extension) {
     if (!extension) {
       return this;
@@ -146,18 +133,6 @@ class RefreshingConfig extends EventEmitter {
       return this.refresh();
     }
     return Q(this.config);
-  }
-
-
-  _collectPatches(patches) {
-    return patches.reduce((result, patch) => {
-      const segments = patch.path.split('/');
-      const key = segments[1];
-      result[key] = result[key] || [];
-      patch.path = '/' + segments.slice(2).join('/');
-      result[key].push(patch);
-      return result;
-    }, {});
   }
 }
 
