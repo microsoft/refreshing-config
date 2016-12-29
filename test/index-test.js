@@ -1,7 +1,7 @@
+const chai = require('chai');
 const clone = require('clone');
 const events = require('events');
 const Q = require('q');
-const chai = require('chai');
 const sinon = require('sinon');
 chai.should();
 
@@ -203,6 +203,27 @@ describe('RefreshingConfig', () => {
     const target = new config.RefreshingConfig({});
     target.withExtension(null).should.equal(target);
     target.withExtension({}).should.equal(target);
+  });
+  it('applies patches correctly', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({ foo: 'bar', test: 42 })),
+      set: sinon.stub().returns(Q()),
+      delete: sinon.stub().returns(Q())
+    };
+    const target = new config.RefreshingConfig(store);
+    const patches = [
+      { op: 'add', path: '/first', value: 'value' },
+      { op: 'replace', path: '/foo', value: 'fred' },
+      { op: 'remove', path: '/test' },
+      { op: 'remove', path: '/test2' }
+    ];
+    return target.apply(patches).then(() => {
+      store.set.calledTwice.should.be.true;
+      store.set.firstCall.calledWith('first', 'value').should.be.true;
+      store.set.secondCall.calledWith('foo', 'fred').should.be.true;
+      store.delete.calledOnce.should.be.true;
+      store.delete.firstCall.calledWith('test').should.be.true;
+    });
   });
 });
 

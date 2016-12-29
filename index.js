@@ -80,18 +80,22 @@ class RefreshingConfig extends EventEmitter {
   }
 
   apply(patches) {
-    // Snapshot the properties/name and apply the patches. If a changed property is still present,
+    // Snapshot the property names and apply the patches. If a changed property is still present,
     // it was changed so set. If it is now missing, delete it.
-    const newValues = Object.assign({}, this.values);
-    patch.apply(newValues, patches);
-    const affected = this._getAffectedProperties(patches);
-    return Q.all(affected.map(key => {
-      if (newValues[key] === undefined) {
-        return this.delete(key);
-      } else {
-        return this.set(key, newValues[key]);
-      }
-    }));
+    return this.refreshIfNeeded().then(() => {
+      const oldKeys = Object.getOwnPropertyNames(this.values);
+      patch.apply(this.values, patches);
+      const affected = this._getAffectedProperties(patches);
+      return Q.all(affected.map(key => {
+        if (this.values[key] !== undefined) {
+          return this.set(key, this.values[key]);
+        }
+        if (oldKeys.includes(key)) {
+          return this.delete(key);
+        }
+        return Q();
+      }));
+    });
   }
 
   _getAffectedProperties(patches) {
