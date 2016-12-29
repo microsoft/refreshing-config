@@ -25,8 +25,8 @@ class RefreshingConfig extends EventEmitter {
     this.store = store;
     this.refreshPolicies = [];
     this.changePublishers = [];
-    this.config = {};
-    this.config._emitter = this;
+    this.values = {};
+    this.values._config = this;
     this.firstTime = true;
   }
 
@@ -35,13 +35,13 @@ class RefreshingConfig extends EventEmitter {
       throw new Error('Missing name');
     }
     return this.refreshIfNeeded().then(() => {
-      return this.config[name];
+      return this.values[name];
     });
   }
 
   getAll() {
     return this.refreshIfNeeded().then(() => {
-      return this.config;
+      return this.values;
     });
   }
 
@@ -82,14 +82,14 @@ class RefreshingConfig extends EventEmitter {
   apply(patches) {
     // Snapshot the properties/name and apply the patches. If a changed property is still present,
     // it was changed so set. If it is now missing, delete it.
-    const newConfig = Object.assign({}, this.config);
-    patch.apply(newConfig, patches);
+    const newValues = Object.assign({}, this.values);
+    patch.apply(newValues, patches);
     const affected = this._getAffectedProperties(patches);
     return Q.all(affected.map(key => {
-      if (newConfig[key] === undefined) {
+      if (newValues[key] === undefined) {
         return this.delete(key);
       } else {
-        return this.set(key, newConfig[key]);
+        return this.set(key, newValues[key]);
       }
     }));
   }
@@ -123,20 +123,20 @@ class RefreshingConfig extends EventEmitter {
     }
     const self = this;
     this.refreshPromise = this.store.getAll()
-      .then(newConfig => {
+      .then(newValues => {
         self.refreshPromise = null;
-        const configPatch = patch.compare(self.config, newConfig);
-        const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_emitter');
+        const configPatch = patch.compare(self.values, newValues);
+        const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_config');
         /* istanbul ignore else */
         if (emitterPatchIndex >= 0) {
           configPatch.splice(emitterPatchIndex, 1);
         }
         if (configPatch.length !== 0) {
-          patch.apply(self.config, configPatch);
-          self.emit('changed', self.config, configPatch);
+          patch.apply(self.values, configPatch);
+          self.emit('changed', self.values, configPatch);
         }
-        self.emit('refresh', self.config);
-        return self.config;
+        self.emit('refresh', self.values);
+        return self.values;
       });
     return this.refreshPromise;
   }
@@ -156,7 +156,7 @@ class RefreshingConfig extends EventEmitter {
     if (shouldRefresh) {
       return this.refresh();
     }
-    return Q(this.config);
+    return Q(this.values);
   }
 }
 
