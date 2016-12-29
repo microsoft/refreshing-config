@@ -29,8 +29,8 @@ class InMemoryPubSubRefreshPolicyAndChangePublisher {
 }
 
 class InMemoryConfigStore {
-  constructor() {
-    this.store = {};
+  constructor(store = null) {
+    this.store = store || {};
   }
 
   getAll() {
