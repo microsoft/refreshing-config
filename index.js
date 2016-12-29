@@ -8,6 +8,8 @@ const EventEmitter = require('events');
 const Q = require('q');
 const patch = require('fast-json-patch');
 const moment = require('moment');
+const InMemoryConfigStore = require('./inmemoryStore').InMemoryConfigStore;
+const InMemoryPubSubRefreshPolicyAndChangePublisher = require('./inmemoryStore').InMemoryPubSubRefreshPolicyAndChangePublisher;
 
 // TODO: Support patching config
 // TODO: Can we be fancier with data types?
@@ -24,7 +26,7 @@ class RefreshingConfig extends EventEmitter {
     this.refreshPolicies = [];
     this.changePublishers = [];
     this.config = {};
-    this.config._emitter = new EventEmitter();
+    this.config._emitter = this;
     this.firstTime = true;
   }
 
@@ -77,6 +79,21 @@ class RefreshingConfig extends EventEmitter {
       .then(this.refresh.bind(self));
   }
 
+  apply(patches) {
+    // Snapshot the properties/name and apply the patches. If a changed property is still present,
+    // it was changed so set. If it is now missing, delete it.
+    const newConfig = Object.assign({}, this.config);
+    const originalNames = Object.getOwnPropertyNames(this.config).filter(name => name != '_emitter');
+    patch.apply(newConfig, patches);
+    return Q.all(originalNames.map(key => {
+      if (newConfig[key]) {
+        return this.set(key, newConfig[key]);
+      } else {
+        return this.delete(key);
+      }
+    }));
+  }
+
   withExtension(extension) {
     if (!extension) {
       return this;
@@ -94,9 +111,13 @@ class RefreshingConfig extends EventEmitter {
   }
 
   refresh() {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
     const self = this;
-    return this.store.getAll()
+    this.refreshPromise = this.store.getAll()
       .then(newConfig => {
+        self.refreshPromise = null;
         const configPatch = patch.compare(self.config, newConfig);
         const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_emitter');
         /* istanbul ignore else */
@@ -106,11 +127,11 @@ class RefreshingConfig extends EventEmitter {
         if (configPatch.length !== 0) {
           patch.apply(self.config, configPatch);
           self.emit('changed', self.config, configPatch);
-          self.config._emitter.emit('changed', self.config, configPatch);
         }
         self.emit('refresh', self.config);
         return self.config;
       });
+    return this.refreshPromise;
   }
 
   refreshIfNeeded() {
@@ -203,5 +224,7 @@ module.exports = {
     NeverRefreshPolicy: NeverRefreshPolicy,
     StaleRefreshPolicy: StaleRefreshPolicy,
     IntervalRefreshPolicy: IntervalRefreshPolicy
-  }
+  },
+  InMemoryConfigStore: InMemoryConfigStore,
+  InMemoryPubSubRefreshPolicyAndChangePublisher: InMemoryPubSubRefreshPolicyAndChangePublisher
 };
