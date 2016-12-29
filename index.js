@@ -83,15 +83,22 @@ class RefreshingConfig extends EventEmitter {
     // Snapshot the properties/name and apply the patches. If a changed property is still present,
     // it was changed so set. If it is now missing, delete it.
     const newConfig = Object.assign({}, this.config);
-    const originalNames = Object.getOwnPropertyNames(this.config).filter(name => name != '_emitter');
     patch.apply(newConfig, patches);
-    return Q.all(originalNames.map(key => {
-      if (newConfig[key]) {
-        return this.set(key, newConfig[key]);
-      } else {
+    const affected = this._getAffectedProperties(patches);
+    return Q.all(affected.map(key => {
+      if (newConfig[key] === undefined) {
         return this.delete(key);
+      } else {
+        return this.set(key, newConfig[key]);
       }
     }));
+  }
+
+  _getAffectedProperties(patches) {
+    return Array.from(patches.reduce((result, patch) => {
+      result.add(patch.path.split('/')[1]);
+      return result;
+    }, new Set()));
   }
 
   withExtension(extension) {
