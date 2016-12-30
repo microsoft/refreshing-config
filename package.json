@@ -1,7 +1,7 @@
 {
   "name": "refreshing-config",
   "version": "0.1.0",
-  "description": "",
+  "description": "Configuration library that can dynamically refresh configuration values.",
   "main": "index.js",
   "scripts": {
     "test": "mocha",
@@ -9,7 +9,13 @@
     "lint": "eslint . --ignore-path .gitignore",
     "prepublish": "npm test && npm run lint"
   },
-  "keywords": [],
+  "keywords": [
+    "config",
+    "dynamic",
+    "refresh",
+    "subscribe",
+    "publish"
+  ],
   "author": "William Bartholomew <willbar@microsoft.com>",
   "license": "MIT",
   "dependencies": {
