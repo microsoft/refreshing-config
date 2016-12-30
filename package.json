@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha",
-    "coverage": "./node_modules/istanbul/lib/cli.js cover ./node_modules/mocha/bin/_mocha && open ./coverage/lcov-report/index.html",
-    "lint": "./node_modules/eslint/bin/eslint.js . --ignore-path .gitignore",
+    "test": "mocha",
+    "coverage": "istanbul cover _mocha && opener coverage/lcov-report/index.html",
+    "lint": "eslint . --ignore-path .gitignore",
     "prepublish": "npm test && npm run lint"
   },
   "keywords": [],
@@ -24,6 +24,7 @@
     "eslint": "3.12.2",
     "istanbul": "0.4.5",
     "mocha": "3.2.0",
+    "opener": "1.4.2",
     "sinon": "1.17.6"
   }
 }
