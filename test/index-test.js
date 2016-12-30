@@ -1,7 +1,7 @@
+const chai = require('chai');
 const clone = require('clone');
 const events = require('events');
 const Q = require('q');
-const chai = require('chai');
 const sinon = require('sinon');
 chai.should();
 
@@ -82,8 +82,8 @@ describe('RefreshingConfig', () => {
     };
     const target = new config.RefreshingConfig(store);
     return target.getAll().then(value => {
-      value._emitter.should.be.instanceof(events.EventEmitter);
-      delete value._emitter;
+      value._config.should.be.instanceof(events.EventEmitter);
+      delete value._config;
       value.should.deep.equal(values);
     });
   });
@@ -108,7 +108,8 @@ describe('RefreshingConfig', () => {
     const target = new config.RefreshingConfig(store)
       .withExtension(yesRefreshPolicy)
       .withExtension(noRefreshPolicy);
-    return Q.all([target.get('foo'), target.get('bar')])
+    // chain the gets here as concurrent gets will get coalesced
+    return target.get('foo').then(() => target.get('bar'))
       .then(() => {
         store.getAll.calledTwice.should.be.true;
         yesRefreshPolicy.shouldRefresh.should.be.calledOnce;
@@ -165,7 +166,7 @@ describe('RefreshingConfig', () => {
     target.on('changed', (newValues, diff) => {
       invokeCount += 1;
       newValues = clone(newValues);
-      delete newValues._emitter;
+      delete newValues._config;
       if (invokeCount === 1) {
         newValues.should.deep.equal(firstResponse);
         diff.length.should.equal(1);
@@ -178,21 +179,21 @@ describe('RefreshingConfig', () => {
     });
     const getAllPromise = target.getAll()
       .then(values => {
-        values._emitter.on('changed', (newValues, diff) => {
+        values._config.on('changed', (newValues, diff) => {
           newValues = clone(newValues);
-          delete newValues._emitter;
+          delete newValues._config;
           newValues.should.deep.equal(secondResponse);
           diff.length.should.equal(2);
           valuesEmitDeferand.resolve();
         });
         values = clone(values);
-        delete values._emitter;
+        delete values._config;
         values.should.deep.equal(firstResponse);
       })
       .then(target.getAll.bind(target))
       .then(values => {
         values = clone(values);
-        delete values._emitter;
+        delete values._config;
         values.should.deep.equal(secondResponse);
       });
 
@@ -202,6 +203,27 @@ describe('RefreshingConfig', () => {
     const target = new config.RefreshingConfig({});
     target.withExtension(null).should.equal(target);
     target.withExtension({}).should.equal(target);
+  });
+  it('applies patches correctly', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({ foo: 'bar', test: 42 })),
+      set: sinon.stub().returns(Q()),
+      delete: sinon.stub().returns(Q())
+    };
+    const target = new config.RefreshingConfig(store);
+    const patches = [
+      { op: 'add', path: '/first', value: 'value' },
+      { op: 'replace', path: '/foo', value: 'fred' },
+      { op: 'remove', path: '/test' },
+      { op: 'remove', path: '/test2' }
+    ];
+    return target.apply(patches).then(() => {
+      store.set.calledTwice.should.be.true;
+      store.set.firstCall.calledWith('first', 'value').should.be.true;
+      store.set.secondCall.calledWith('foo', 'fred').should.be.true;
+      store.delete.calledOnce.should.be.true;
+      store.delete.firstCall.calledWith('test').should.be.true;
+    });
   });
 });
 

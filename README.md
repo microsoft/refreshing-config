@@ -35,10 +35,9 @@ the changes that were detected.
 * ```refresh(config)```: Emitted whenever the configuration is refreshed from the store where ```config```
 is the configuration after the refresh.
 
-The object returned from ```getAll()``` also has an event emitter in the ```_emitter``` property. This
-event emitter will emit the same ```changed(config, patch)``` event as ```RefreshingConfig```. This can
-be useful if you want to pass the configuration object around you application and allow different parts
-of your application to subscribe to updates to the configuration.
+The object returned from ```getAll()``` also has the ```RefreshingConfig``` instance itself in the ```_config``` property. This is
+useful if you want to pass the configuration object around your application and allowing it to subscribe to updates or otherwise
+manage the configuration.
 
 # Extensions
 You can extend refreshing-config's behavior by attaching extensions using ```withExtension```:
@@ -50,7 +49,7 @@ const config = new RefreshingConfig.RefreshingConfig(store)
 ```
 
 ## Refresh policies
-Refresh policies define when refreshing-config should go back to the store to get updated configuration values. Refresh policies can either be reactive (refreshing-config asks them if it should go back to the store) 
+Refresh policies define when refreshing-config should go back to the store to get updated configuration values. Refresh policies can either be reactive (refreshing-config asks them if it should go back to the store)
 or proactive (they notify refreshing-config that it needs to refresh). If there are multiple refresh policies attached then refreshing-config will go back to the store if **any** of them say a refresh is required.
 
 Refresh policies are bypassed in the following scenarios:
@@ -113,6 +112,6 @@ be ```set``` or ```delete```, the ```name``` will be the name of the configurati
 # Contributing
 Pull requests will gladly be considered!
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see 
-the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) 
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see
+the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com)
 with any additional questions or comments.

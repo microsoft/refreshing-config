@@ -8,6 +8,8 @@ const EventEmitter = require('events');
 const Q = require('q');
 const patch = require('fast-json-patch');
 const moment = require('moment');
+const InMemoryConfigStore = require('./inmemoryStore').InMemoryConfigStore;
+const InMemoryPubSubRefreshPolicyAndChangePublisher = require('./inmemoryStore').InMemoryPubSubRefreshPolicyAndChangePublisher;
 
 // TODO: Support patching config
 // TODO: Can we be fancier with data types?
@@ -23,8 +25,8 @@ class RefreshingConfig extends EventEmitter {
     this.store = store;
     this.refreshPolicies = [];
     this.changePublishers = [];
-    this.config = {};
-    this.config._emitter = new EventEmitter();
+    this.values = {};
+    this.values._config = this;
     this.firstTime = true;
   }
 
@@ -33,13 +35,13 @@ class RefreshingConfig extends EventEmitter {
       throw new Error('Missing name');
     }
     return this.refreshIfNeeded().then(() => {
-      return this.config[name];
+      return this.values[name];
     });
   }
 
   getAll() {
     return this.refreshIfNeeded().then(() => {
-      return this.config;
+      return this.values;
     });
   }
 
@@ -77,6 +79,32 @@ class RefreshingConfig extends EventEmitter {
       .then(this.refresh.bind(self));
   }
 
+  apply(patches) {
+    // Snapshot the property names and apply the patches. If a changed property is still present,
+    // it was changed so set. If it is now missing, delete it.
+    return this.refreshIfNeeded().then(() => {
+      const oldKeys = Object.getOwnPropertyNames(this.values);
+      patch.apply(this.values, patches);
+      const affected = this._getAffectedProperties(patches);
+      return Q.all(affected.map(key => {
+        if (this.values[key] !== undefined) {
+          return this.set(key, this.values[key]);
+        }
+        if (oldKeys.includes(key)) {
+          return this.delete(key);
+        }
+        return Q();
+      }));
+    });
+  }
+
+  _getAffectedProperties(patches) {
+    return Array.from(patches.reduce((result, patch) => {
+      result.add(patch.path.split('/')[1]);
+      return result;
+    }, new Set()));
+  }
+
   withExtension(extension) {
     if (!extension) {
       return this;
@@ -94,23 +122,27 @@ class RefreshingConfig extends EventEmitter {
   }
 
   refresh() {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
     const self = this;
-    return this.store.getAll()
-      .then(newConfig => {
-        const configPatch = patch.compare(self.config, newConfig);
-        const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_emitter');
+    this.refreshPromise = this.store.getAll()
+      .then(newValues => {
+        self.refreshPromise = null;
+        const configPatch = patch.compare(self.values, newValues);
+        const emitterPatchIndex = configPatch.findIndex(patch => patch.path === '/_config');
         /* istanbul ignore else */
         if (emitterPatchIndex >= 0) {
           configPatch.splice(emitterPatchIndex, 1);
         }
         if (configPatch.length !== 0) {
-          patch.apply(self.config, configPatch);
-          self.emit('changed', self.config, configPatch);
-          self.config._emitter.emit('changed', self.config, configPatch);
+          patch.apply(self.values, configPatch);
+          self.emit('changed', self.values, configPatch);
         }
-        self.emit('refresh', self.config);
-        return self.config;
+        self.emit('refresh', self.values);
+        return self.values;
       });
+    return this.refreshPromise;
   }
 
   refreshIfNeeded() {
@@ -128,7 +160,7 @@ class RefreshingConfig extends EventEmitter {
     if (shouldRefresh) {
       return this.refresh();
     }
-    return Q(this.config);
+    return Q(this.values);
   }
 }
 
@@ -203,5 +235,7 @@ module.exports = {
     NeverRefreshPolicy: NeverRefreshPolicy,
     StaleRefreshPolicy: StaleRefreshPolicy,
     IntervalRefreshPolicy: IntervalRefreshPolicy
-  }
+  },
+  InMemoryConfigStore: InMemoryConfigStore,
+  InMemoryPubSubRefreshPolicyAndChangePublisher: InMemoryPubSubRefreshPolicyAndChangePublisher
 };
