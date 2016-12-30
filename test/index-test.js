@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+
 const chai = require('chai');
 const clone = require('clone');
 const events = require('events');
