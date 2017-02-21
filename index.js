@@ -3,6 +3,7 @@
 
 const debug = require('debug')('dynamic-config');
 const EventEmitter = require('events');
+const extend = require('extend');
 const Q = require('q');
 const patch = require('fast-json-patch');
 const moment = require('moment');
@@ -81,12 +82,13 @@ class RefreshingConfig extends EventEmitter {
     // Snapshot the property names and apply the patches. If a changed property is still present,
     // it was changed so set. If it is now missing, delete it.
     return this.refreshIfNeeded().then(() => {
-      const oldKeys = Object.getOwnPropertyNames(this.values);
-      patch.apply(this.values, patches);
+      const newValues = extend(true, {}, this.values);
+      patch.apply(newValues, patches);
       const affected = this._getAffectedProperties(patches);
+      const oldKeys = Object.getOwnPropertyNames(this.values);
       return Q.all(affected.map(key => {
-        if (this.values[key] !== undefined) {
-          return this.set(key, this.values[key]);
+        if (newValues[key] !== undefined) {
+          return this.set(key, newValues[key]);
         }
         if (oldKeys.includes(key)) {
           return this.delete(key);
