@@ -188,7 +188,7 @@ class StaleRefreshPolicy {
   }
 
   shouldRefresh() {
-    if (!this.lastRefresh || moment() > this.lastRefresh.add(this.duration, 'ms')) {
+    if (!this.lastRefresh || moment() > this.lastRefresh.clone().add(this.duration, 'ms')) {
       this.lastRefresh = moment();
       return true;
     }

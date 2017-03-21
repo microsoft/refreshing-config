@@ -27,7 +27,7 @@ describe('RefreshingConfig', () => {
   });
   it('fails to retrieve a setting if there is no name', () => {
     const target = new config.RefreshingConfig({});
-    (() => target.get(null)).should.throw(Error);
+    (() => target.get(null)).should.throw(Error, /Missing name/);
   });
   it('can set a setting in the store', () => {
     const store = {
@@ -40,6 +40,7 @@ describe('RefreshingConfig', () => {
     };
     const target = new config.RefreshingConfig(store)
       .withExtension(publisher);
+    target.changePublishers.length.should.equal(1);
     const emitPromise = Q.defer();
     target.on('set', (name, value) => {
       name.should.equal('foo');
@@ -111,8 +112,10 @@ describe('RefreshingConfig', () => {
     const target = new config.RefreshingConfig(store)
       .withExtension(yesRefreshPolicy)
       .withExtension(noRefreshPolicy);
+    target.refreshPolicies.length.should.equal(2);
     // chain the gets here as concurrent gets will get coalesced
-    return target.get('foo').then(() => target.get('bar'))
+    return target.get('foo')
+      .then(() => target.get('bar'))
       .then(() => {
         store.getAll.calledTwice.should.be.true;
         yesRefreshPolicy.shouldRefresh.should.be.calledOnce;
@@ -140,11 +143,17 @@ describe('RefreshingConfig', () => {
     };
     const refreshOnDemandPolicy = {
       subscribe: (subscriber) => { this.subscriber = subscriber; },
-      refresh: () => this.subscriber.refresh()
+      refresh: () => { this.subscriber.refresh(); }
     };
+    const subscribeSpy = sinon.spy(refreshOnDemandPolicy, 'subscribe');
+    const refreshSpy = sinon.spy(refreshOnDemandPolicy, 'refresh');
+
     new config.RefreshingConfig(store)
-      .withExtension(refreshOnDemandPolicy);
+      .withExtension(refreshOnDemandPolicy);  
+    subscribeSpy.calledOnce.should.be.true;
+
     refreshOnDemandPolicy.refresh();
+    refreshSpy.calledOnce.should.be.true;
     store.getAll.calledOnce.should.be.true;
   });
   it('notifies subscribers of changes', () => {
@@ -206,6 +215,8 @@ describe('RefreshingConfig', () => {
     const target = new config.RefreshingConfig({});
     target.withExtension(null).should.equal(target);
     target.withExtension({}).should.equal(target);
+    target.refreshPolicies.length.should.equal(0);
+    target.changePublishers.length.should.equal(0);
   });
   it('applies patches correctly', () => {
     const store = {
@@ -228,6 +239,21 @@ describe('RefreshingConfig', () => {
       store.delete.firstCall.calledWith('test').should.be.true;
     });
   });
+  it('refresh correctly', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({})),
+    };
+    const refreshOnDemandPolicy = {
+      subscribe: (subscriber) => { this.subscriber = subscriber; },
+      refresh: () => { this.subscriber.refresh(); }
+    };
+    new config.RefreshingConfig(store)
+      .withExtension(refreshOnDemandPolicy);
+    refreshOnDemandPolicy.refresh();
+    store.getAll.calledOnce.should.be.true;
+    refreshOnDemandPolicy.refresh();
+    store.getAll.calledOnce.should.be.true;
+  });
 });
 
 describe('AlwaysRefreshPolicy', () => {
@@ -235,12 +261,40 @@ describe('AlwaysRefreshPolicy', () => {
     const target = new config.RefreshPolicy.AlwaysRefreshPolicy();
     target.shouldRefresh().should.true;
   });
+
+  it('should always refresh', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({ foo: 'bar' })),
+    };
+    const policy = new config.RefreshPolicy.AlwaysRefreshPolicy();
+    const target = new config.RefreshingConfig(store)
+      .withExtension(policy);
+    const refreshSpy = sinon.spy(target, 'refresh');
+    target.refreshIfNeeded();
+    refreshSpy.calledOnce.should.be.true;
+    target.refreshIfNeeded();
+    refreshSpy.calledTwice.should.be.true;
+  });
 });
 
 describe('NeverRefreshPolicy', () => {
   it('always returns false', () => {
     const target = new config.RefreshPolicy.NeverRefreshPolicy();
     target.shouldRefresh().should.be.false;
+  });
+
+  it('should only refresh the first time', () => {
+    const store = {
+      getAll: sinon.stub().returns(Q({ foo: 'bar' })),
+    };
+    const policy = new config.RefreshPolicy.NeverRefreshPolicy();
+    const target = new config.RefreshingConfig(store)
+      .withExtension(policy);
+    const refreshSpy = sinon.spy(target, 'refresh');
+    target.refreshIfNeeded();
+    refreshSpy.calledOnce.should.be.true;
+    target.refreshIfNeeded();
+    refreshSpy.calledOnce.should.be.true;
   });
 });
 
@@ -257,21 +311,33 @@ describe('StaleRefreshPolicy', () => {
   });
   it('refreshes if the interval has passed', () => {
     const target = new config.RefreshPolicy.StaleRefreshPolicy(1000);
-    target.shouldRefresh();
+    target.shouldRefresh().should.be.true;
     clock.tick(5000);
     target.shouldRefresh().should.be.true;
   });
   it('doesn\'t refresh if the interval hasnn\'t passed', () => {
     const target = new config.RefreshPolicy.StaleRefreshPolicy(5000);
-    target.shouldRefresh();
+    target.shouldRefresh().should.be.true;
+    clock.tick(1000);
+    target.shouldRefresh().should.be.false;
     clock.tick(1000);
     target.shouldRefresh().should.be.false;
   });
+  it('refresh only when its time to', () => {
+    const target = new config.RefreshPolicy.StaleRefreshPolicy(5000);
+    target.shouldRefresh().should.be.true;
+    clock.tick(1000);
+    target.shouldRefresh().should.be.false;
+    clock.tick(5000);
+    target.shouldRefresh().should.be.true;
+    clock.tick(5000);
+    target.shouldRefresh().should.be.false;
+  });
   it('throws if duration is not a number', () => {
-    (() => new config.RefreshPolicy.StaleRefreshPolicy(null)).should.throw(Error);
+    (() => new config.RefreshPolicy.StaleRefreshPolicy(null)).should.throw(Error, /Invalid duration/);
   });
   it('throws if duration is less than 1', () => {
-    (() => new config.RefreshPolicy.StaleRefreshPolicy(0)).should.throw(Error);
+    (() => new config.RefreshPolicy.StaleRefreshPolicy(0)).should.throw(Error, /Invalid duration/);
   });
 });
 
@@ -303,6 +369,17 @@ describe('IntervalRefreshPolicy', () => {
     clock.tick(1250);
     refreshingConfig.refresh.calledOnce.should.be.true;
   });
+  it('don\'t refresh if it\'s not time yet', () => {
+    const refreshingConfig = new config.RefreshingConfig({});
+    refreshingConfig.refresh = sinon.stub();
+    const refreshPolicy = new config.RefreshPolicy.IntervalRefreshPolicy(1000);
+    refreshPolicy.subscribe(refreshingConfig);
+    clock.tick(1250);
+    refreshingConfig.refresh.calledOnce.should.be.true;
+    clock.tick(200);
+    refreshingConfig.refresh.calledOnce.should.be.true;
+    refreshPolicy.unsubscribe();
+  });
   it('throws if duration is not a number', () => {
     (() => new config.RefreshPolicy.IntervalRefreshPolicy(null)).should.throw(Error, /invalid duration/i);
   });
@@ -319,5 +396,90 @@ describe('IntervalRefreshPolicy', () => {
   it('does not throw if you unsubscribe when not subscribed', () => {
     const target = new config.RefreshPolicy.IntervalRefreshPolicy(1000);
     target.unsubscribe();
+  });
+});
+
+describe('InMemoryConfigStore', () => {
+  it('initialize empty store', () => {
+    const target = new config.InMemoryConfigStore();
+    return target.getAll()
+      .then((result) => {
+        result.should.deep.equal({});
+      });
+  });
+  it('initialize not empty store', () => {
+    const store = { foo: 'bar' };
+    const target = new config.InMemoryConfigStore(store);
+    return target.getAll()
+      .then((result) => {
+        result.should.deep.equal(store);
+      });
+  });
+  it('deletes value', () => {
+    const store = { foo: 'bar', test: 42 };
+    const afterDeleteStore = { foo: 'bar' };
+    const target = new config.InMemoryConfigStore(store);
+    return target.delete('test')
+      .then(() => {
+        return target.getAll();
+      })
+      .then((result) => {
+        result.should.deep.equal(afterDeleteStore);
+      });
+  });
+  it('sets a value', () => {
+    const store = { foo: 'bar' };
+    const afterSetStore = { foo: 'bar', test: 42 };
+    const target = new config.InMemoryConfigStore(store);
+    return target.set('test', 42)
+      .then(() => {
+        return target.getAll();
+      })
+      .then((result) => {
+        result.should.deep.equal(afterSetStore);
+      });
+  });
+  it('returns extension', () => {
+    const target = new config.InMemoryConfigStore();
+    const extension = target.toExtension();
+    (extension instanceof config.InMemoryPubSubRefreshPolicyAndChangePublisher).should.be.true;
+  });
+});
+
+describe('InMemoryPubSubRefreshPolicyAndChangePublisher', () => {
+  it('don\'t throws error when publish without subscriber', () => {
+    const publisher = new config.InMemoryPubSubRefreshPolicyAndChangePublisher();
+    (() => {
+      publisher.publish();
+    }).should.not.throw(Error);
+  });
+  it('initialize using InMemoryConfigStore', () => {
+    const store = new config.InMemoryConfigStore({ foo: 'bar' });
+    const publisher = new config.InMemoryPubSubRefreshPolicyAndChangePublisher();
+    const target = new config.RefreshingConfig(store)
+      .withExtension(publisher);
+    return target.getAll()
+      .then((result) => {
+        delete result._config;
+        result.should.deep.equal({ foo: 'bar' });
+      });
+  });
+  it('throws if already subscribed', () => {
+    const store = new config.InMemoryConfigStore({ foo: 'bar' });
+    const publisher = new config.InMemoryPubSubRefreshPolicyAndChangePublisher();
+    new config.RefreshingConfig(store)
+      .withExtension(publisher);
+    (() => {
+      publisher.subscribe({});
+    }).should.throw(Error, /Already subscribed/);
+  });
+  it('refresh subscriber', () => {
+    const store = new config.InMemoryConfigStore({ foo: 'bar' });
+    const publisher = new config.InMemoryPubSubRefreshPolicyAndChangePublisher();
+    const target = new config.RefreshingConfig(store)
+      .withExtension(publisher);
+    const refreshSpy = sinon.spy(target, 'refresh');
+    publisher.publish();
+    refreshSpy.calledOnce.should.be.true;
   });
 });
