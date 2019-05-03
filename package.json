@@ -1,6 +1,6 @@
 {
   "name": "refreshing-config",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Configuration library that can dynamically refresh configuration values.",
   "main": "index.js",
   "scripts": {
@@ -19,19 +19,19 @@
   "author": "William Bartholomew <willbar@microsoft.com>",
   "license": "MIT",
   "dependencies": {
-    "debug": "2.4.5",
-    "extend": "^3.0.0",
+    "debug": "4.1.1",
+    "extend": "3.0.2",
     "fast-json-patch": "1.1.3",
-    "moment": "2.17.1",
-    "q": "1.4.1"
+    "moment": "2.24.0",
+    "q": "1.5.1"
   },
   "devDependencies": {
     "chai": "3.5.0",
-    "clone": "2.1.0",
-    "eslint": "3.12.2",
+    "clone": "2.1.2",
+    "eslint": "5.16.0",
     "istanbul": "0.4.5",
-    "mocha": "3.2.0",
-    "opener": "1.4.2",
-    "sinon": "1.17.6"
+    "mocha": "6.1.4",
+    "opener": "1.5.1",
+    "sinon": "2.4.1"
   }
 }
